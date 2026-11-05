@@ -1,4 +1,6 @@
 -- Post 1's positions logic: the latest price per symbol, then positions and P&L per instrument.
+-- Reads instruments and trades (tables.sql) and market_data, the price feed: symbol, price and
+-- timestamp (epoch milliseconds).
 
 CREATE MATERIALIZED VIEW latest_market_data AS
   SELECT DISTINCT ON (symbol) symbol, price, timestamp
