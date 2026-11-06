@@ -1,5 +1,5 @@
 import { createGrid, ModuleRegistry, AllCommunityModule, themeAlpine } from 'ag-grid-community';
-import { subscribe } from './sse.js';
+import { subscribe } from './graphql.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -8,10 +8,28 @@ const positionsColumnConfig = getPositionsColumnConfig();
 const positionsFields = Object.keys(positionsColumnConfig);
 const positionsGridApi = createPositionsGrid();
 
+// Setup trades grid, for the selected position
+const tradesColumnConfig = getTradesColumnConfig();
+const tradesFields = Object.keys(tradesColumnConfig);
+const tradesGridApi = createTradesGrid();
+let tradesSubscription = null;
+
 // Subscribe to positions
-subscribe('/live_pnl', 'instrument_id', (operation, rowData, changedFields) => {
+subscribe('live_pnl', positionsFields, (operation, rowData, changedFields) => {
   handleGridUpdate(positionsGridApi, operation, rowData, changedFields, 'instrument_id');
 });
+
+// Show the trades of the clicked position, through a filtered subscription
+function selectPosition(position) {
+  tradesSubscription?.unsubscribe();
+  tradesGridApi.setGridOption('rowData', []);
+  document.querySelector('#trades-title').textContent = `Trades: ${position.symbol}`;
+
+  const where = { instrument_id: { _eq: position.instrument_id } };
+  tradesSubscription = subscribe('trades', tradesFields, (operation, rowData, changedFields) => {
+    handleGridUpdate(tradesGridApi, operation, rowData, changedFields, 'id');
+  }, where);
+}
 
 function handleGridUpdate(gridApi, operation, rowData, changedFields, idField, addIndex) {
   switch (operation) {
@@ -85,6 +103,22 @@ function getPositionsColumnConfig() {
   };
 }
 
+function getTradesColumnConfig() {
+  return {
+    id: { hide: true },
+    executed_at: { headerName: 'Time', sort: 'desc' },
+    quantity: {
+      headerName: 'Quantity',
+      valueFormatter: params => params.value != null ? Number(params.value).toLocaleString() : '',
+      cellStyle: params => ({ color: params.value > 0 ? 'green' : params.value < 0 ? 'red' : 'black' })
+    },
+    price: {
+      headerName: 'Price',
+      valueFormatter: params => params.value != null ? Number(params.value).toFixed(2) : ''
+    }
+  };
+}
+
 function getPnlColumnConfig() {
   return {
     valueFormatter: params => params.value != null
@@ -103,6 +137,24 @@ function createPositionsGrid() {
     columnDefs: positionsFields.map(field => ({ field, ...positionsColumnConfig[field] })),
     rowData: [],
     getRowId: params => String(params.data.instrument_id),
+    rowSelection: { mode: 'singleRow', checkboxes: false, enableClickSelection: true },
+    onRowClicked: event => selectPosition(event.data),
+    defaultColDef: {
+      resizable: true
+    },
+    autoSizeStrategy: {
+      type: 'fitGridWidth'
+    }
+  });
+}
+
+function createTradesGrid() {
+  return createGrid(document.querySelector('#trades-grid'), {
+    overlayNoRowsTemplate: '<span style="padding: 10px">Click a position to see its trades</span>',
+    theme: themeAlpine,
+    columnDefs: tradesFields.map(field => ({ field, ...tradesColumnConfig[field] })),
+    rowData: [],
+    getRowId: params => String(params.data.id),
     defaultColDef: {
       resizable: true
     },
