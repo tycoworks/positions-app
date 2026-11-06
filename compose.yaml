@@ -1,0 +1,60 @@
+name: positions-app
+
+services:
+  materialized:
+    image: materialize/materialized:v26.49.0
+    ports:
+      - "6874:6874"   # console
+      - "6875:6875"   # SQL
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -p 6875 -U materialize materialize -c 'SELECT 1' >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  # Creates the tables and views once Materialize is up, then exits (data.sh setup).
+  setup:
+    image: materialize/materialized:v26.49.0
+    entrypoint: ["/data.sh", "setup"]
+    environment:
+      MZ_HOST: materialized
+    volumes:
+      - ./sql:/sql:ro
+      - ./data.sh:/data.sh:ro
+    depends_on:
+      materialized:
+        condition: service_healthy
+
+  # Simulated prices and trades (data.sh loop).
+  simulator:
+    image: materialize/materialized:v26.49.0
+    entrypoint: ["/data.sh", "loop"]
+    environment:
+      MZ_HOST: materialized
+    volumes:
+      - ./data.sh:/data.sh:ro
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
+  # Serves the views in schema.yaml as GraphQL subscriptions over SSE. It starts after setup, because
+  # it stops on a subscription to a view that doesn't exist yet.
+  tycostream:
+    image: ghcr.io/tycoworks/tycostream:v0.2.0
+    environment:
+      DATABASE_HOST: materialized
+      DATABASE_PORT: 6875
+      DATABASE_USER: materialize
+      DATABASE_PASSWORD: materialize
+      DATABASE_NAME: materialize
+      GRAPHQL_PORT: 4000
+      GRAPHQL_UI: "true"
+      SCHEMA_PATH: ./schema.yaml
+      LOG_LEVEL: info
+    volumes:
+      - ./schema.yaml:/app/schema.yaml:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      setup:
+        condition: service_completed_successfully

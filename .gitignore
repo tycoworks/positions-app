@@ -1,5 +1,2 @@
 node_modules/
 dist/
-# Local stack config stays out of git, except Zilla's, which the post describes
-/config/*
-!/config/zilla.yaml
