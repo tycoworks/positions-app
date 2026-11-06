@@ -106,7 +106,12 @@ function getPositionsColumnConfig() {
 function getTradesColumnConfig() {
   return {
     id: { hide: true },
-    executed_at: { headerName: 'Time', sort: 'desc' },
+    executed_at: {
+      headerName: 'Executed At',
+      width: 200,
+      sort: 'desc',
+      valueFormatter: params => params.value ? new Date(params.value).toLocaleString() : ''
+    },
     quantity: {
       headerName: 'Quantity',
       valueFormatter: params => params.value != null ? Number(params.value).toLocaleString() : '',
