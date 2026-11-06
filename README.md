@@ -1,35 +1,26 @@
 # positions-app
 
-A live positions grid, from the post [Can a Streaming Database Power Trading Apps?](https://www.tycoworks.com/p/can-a-streaming-database-power-a)
+A live positions and trades screen, for testing real-time infrastructure for trading apps in the [tycoworks](https://www.tycoworks.com) posts.
 
-Materialize computes positions and P&L, sinks them to Kafka, and Zilla streams the topic to an AG Grid page over server-sent events.
-
-- `sql/`: the Postgres tables, the views, and the sink of `live_pnl` to Kafka
-- `ui/`: the page
-
-The views read `instruments` and `trades`, the Postgres tables in `sql/tables.sql`. They also read `market_data`, a price feed with `symbol`, `price` and `timestamp` (epoch milliseconds) columns, which in the post was Alpaca's trade prints, brought in through Estuary.
+[Materialize](https://materialize.com/) computes positions and P&L, and [tycostream](https://github.com/tycoworks/tycostream) streams them to the browser as GraphQL subscriptions over server-sent events.
 
 ## Running it
 
-You need Materialize, a Kafka broker, and Zilla serving the `live_pnl` topic at `/live_pnl`, as `config/zilla.yaml` does. In Materialize:
-
-1. Create a Kafka connection named `kafka`.
-2. Run `sql/tables.sql`, and bring in `market_data` from your price feed.
-3. Run `sql/views.sql`, then `sql/sink.sql`.
-
-Then start the page:
-
 ```
+docker compose up -d
 cd ui
 npm install
 npm run dev
 ```
 
-The page expects Zilla at `http://localhost:7114`. Set `VITE_ZILLA_URL` to change it.
+Open http://localhost:5173 and click a position to see its trades. tycostream's GraphQL explorer is at http://localhost:4000/graphql.
+
+## Versions
+
+- [`v1`](https://github.com/tycoworks/positions-app/tree/v1), for [Can a Streaming Database Power Trading Apps?](https://www.tycoworks.com/p/can-a-streaming-database-power-a): streams through Kafka and Zilla
+- `v2`, for [the tycostream post](https://www.tycoworks.com/p/tycostream-turn-materialize-views): streams through tycostream
 
 ## Tested with
 
 - Materialize v26.49
-- Apache Kafka 4.4.0, one node, with automatic topic creation off
-- Zilla 2.6.0 (community edition), with one `sse-kafka` route on the `live_pnl` topic
-- The sink writes a compacted, uncompressed topic keyed by `instrument_id`
+- tycostream v0.2.0
