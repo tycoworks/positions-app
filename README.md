@@ -11,7 +11,7 @@ The views read `instruments` and `trades`, the Postgres tables in `sql/tables.sq
 
 ## Running it
 
-You need Materialize, a Kafka broker, and Zilla serving the `live_pnl` topic at `/live_pnl`. In Materialize:
+You need Materialize, a Kafka broker, and Zilla serving the `live_pnl` topic at `/live_pnl`, as `config/zilla.yaml` does. In Materialize:
 
 1. Create a Kafka connection named `kafka`.
 2. Run `sql/tables.sql`, and bring in `market_data` from your price feed.
