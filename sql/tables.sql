@@ -1,5 +1,5 @@
--- The Postgres tables the views read, with some fake data. In the post they lived on Neon and were
--- replicated into Materialize.
+-- The tables the views read, with some fake data. In the post, instruments and trades lived in
+-- Postgres on Neon and were replicated into Materialize.
 
 CREATE TABLE instruments (
   id integer NOT NULL,
@@ -13,6 +13,14 @@ CREATE TABLE trades (
   quantity integer NOT NULL,  -- positive for a buy, negative for a sell
   price numeric NOT NULL,
   executed_at timestamp NOT NULL
+);
+
+-- The price feed. In the post it was Alpaca's trade prints, brought in through Estuary; here the
+-- simulator (data.sh) fills it.
+CREATE TABLE market_data (
+  symbol text NOT NULL,
+  price numeric NOT NULL,
+  timestamp bigint NOT NULL  -- epoch milliseconds
 );
 
 INSERT INTO instruments VALUES
