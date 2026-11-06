@@ -1,8 +1,11 @@
+
 # positions-app
 
 A live positions and trades screen, for testing real-time infrastructure for trading apps in the [tycoworks](https://www.tycoworks.com) posts.
 
 [Materialize](https://materialize.com/) computes positions and P&L, and [tycostream](https://github.com/tycoworks/tycostream) streams them to the browser as GraphQL subscriptions over server-sent events.
+
+https://github.com/user-attachments/assets/b56982b1-af99-4904-9cab-7b4fb788d765
 
 ## Running it
 
