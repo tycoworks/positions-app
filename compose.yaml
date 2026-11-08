@@ -37,10 +37,9 @@ services:
       setup:
         condition: service_completed_successfully
 
-  # Serves the views in schema.yaml as GraphQL subscriptions over SSE. It starts after setup, because
-  # it stops on a subscription to a view that doesn't exist yet.
+  # Serves the views in schema.yaml as GraphQL subscriptions over SSE. It starts after setup.
   tycostream:
-    image: ghcr.io/tycoworks/tycostream:v0.2.0
+    image: ghcr.io/tycoworks/tycostream:v0.3.0
     environment:
       DATABASE_HOST: materialized
       DATABASE_PORT: 6875
