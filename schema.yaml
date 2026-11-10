@@ -2,18 +2,18 @@ sources:
   live_pnl:
     primary_key: instrument_id
     columns:
-      instrument_id: Integer
-      symbol: String
-      net_position: BigInt
-      latest_price: Float
-      market_value: Float
-      avg_cost_basis: Float
-      theoretical_pnl: Float
+      instrument_id: int4
+      symbol: text
+      net_position: int8
+      latest_price: numeric
+      market_value: numeric
+      avg_cost_basis: numeric
+      theoretical_pnl: numeric
   trades:
     primary_key: id
     columns:
-      id: Integer
-      instrument_id: Integer
-      quantity: Integer
-      price: Float
-      executed_at: Timestamp
+      id: int4
+      instrument_id: int4
+      quantity: int4
+      price: numeric
+      executed_at: timestamp

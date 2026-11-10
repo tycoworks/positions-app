@@ -39,7 +39,7 @@ services:
 
   # Serves the views in schema.yaml as GraphQL subscriptions over SSE. It starts after setup.
   tycostream:
-    image: ghcr.io/tycoworks/tycostream:v0.3.0
+    image: ghcr.io/tycoworks/tycostream:v0.4.1
     environment:
       DATABASE_HOST: materialized
       DATABASE_PORT: 6875

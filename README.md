@@ -26,4 +26,4 @@ Open http://localhost:5173 and click a position to see its trades. tycostream's 
 ## Tested with
 
 - Materialize v26.49
-- tycostream v0.3.0
+- tycostream v0.4.1
