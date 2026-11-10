@@ -7,7 +7,7 @@ CREATE MATERIALIZED VIEW latest_market_data AS
   FROM market_data
   ORDER BY symbol, timestamp DESC;
 
-CREATE MATERIALIZED VIEW live_pnl AS
+CREATE MATERIALIZED VIEW positions AS
   SELECT
     i.id AS instrument_id,
     i.symbol,
