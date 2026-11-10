@@ -15,8 +15,8 @@ const tradesGridApi = createTradesGrid();
 let tradesSubscription = null;
 
 // Subscribe to positions
-subscribe('live_pnl', positionsFields, (operation, rowData, changedFields) => {
-  handleGridUpdate(positionsGridApi, operation, rowData, changedFields, 'instrument_id');
+subscribe('live_pnl', positionsFields, (updates) => {
+  applyUpdates(positionsGridApi, updates, 'instrument_id');
 });
 
 // Show the trades of the clicked position, through a filtered subscription
@@ -26,32 +26,36 @@ function selectPosition(position) {
   document.querySelector('#trades-title').textContent = `Trades: ${position.symbol}`;
 
   const where = { instrument_id: { _eq: position.instrument_id } };
-  tradesSubscription = subscribe('trades', tradesFields, (operation, rowData, changedFields) => {
-    handleGridUpdate(tradesGridApi, operation, rowData, changedFields, 'id');
+  tradesSubscription = subscribe('trades', tradesFields, (updates) => {
+    applyUpdates(tradesGridApi, updates, 'id');
   }, where);
 }
 
-function handleGridUpdate(gridApi, operation, rowData, changedFields, idField, addIndex) {
-  switch (operation) {
-    case 'DELETE':
-      gridApi.applyTransaction({ remove: [rowData] });
-      break;
-    case 'UPDATE':
-      const updatedRow = mergeWithExistingRow(gridApi, rowData, changedFields, idField);
-      if (updatedRow) {
-        gridApi.applyTransaction({ update: [updatedRow] });
-      } else {
-        console.warn(`UPDATE received for non-existent row with ${idField}=${rowData[idField]}`);
+// Applies one timestamp's updates to a grid as one transaction, so it never shows half a timestamp
+function applyUpdates(gridApi, updates, idField) {
+  const transaction = { add: [], update: [], remove: [] };
+  for (const { operation, data: rowData, fields } of updates) {
+    switch (operation) {
+      case 'DELETE':
+        transaction.remove.push(rowData);
+        break;
+      case 'UPDATE': {
+        const updatedRow = mergeWithExistingRow(gridApi, rowData, fields, idField);
+        if (updatedRow) {
+          transaction.update.push(updatedRow);
+        } else {
+          console.warn(`UPDATE received for non-existent row with ${idField}=${rowData[idField]}`);
+        }
+        break;
       }
-      break;
-    case 'INSERT':
-      const options = addIndex !== undefined
-        ? { add: [rowData], addIndex }
-        : { add: [rowData] };
-      gridApi.applyTransaction(options);
-      break;
+      case 'INSERT':
+        transaction.add.push(rowData);
+        break;
+    }
   }
+  gridApi.applyTransaction(transaction);
 }
+
 
 function mergeWithExistingRow(gridApi, deltaData, changedFields, idField) {
   const rowNode = gridApi.getRowNode(String(deltaData[idField]));
