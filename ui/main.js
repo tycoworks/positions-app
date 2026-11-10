@@ -15,7 +15,7 @@ const tradesGridApi = createTradesGrid();
 let tradesSubscription = null;
 
 // Subscribe to positions
-subscribe('live_pnl', positionsFields, (updates) => {
+subscribe('positions', positionsFields, (updates) => {
   applyUpdates(positionsGridApi, updates, 'instrument_id');
 });
 
