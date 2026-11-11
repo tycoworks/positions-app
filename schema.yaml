@@ -17,3 +17,5 @@ sources:
       quantity: int4
       price: numeric
       executed_at: timestamp
+    foreign_keys:
+      instrument_id: positions
