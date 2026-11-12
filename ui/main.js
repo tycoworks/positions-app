@@ -1,7 +1,13 @@
 import { createGrid, ModuleRegistry, AllCommunityModule, themeAlpine } from 'ag-grid-community';
-import { subscribe } from './graphql.js';
+import { Operation, gql, subscribe } from './graphql.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+// The source the app subscribes to and its list, and each one's key
+const POSITIONS = 'positions';
+const TRADES = 'trades';
+const POSITION_KEY = 'instrument_id';
+const TRADE_KEY = 'id';
 
 // Setup positions grid
 const positionsColumnConfig = getPositionsColumnConfig();
@@ -12,73 +18,78 @@ const positionsGridApi = createPositionsGrid();
 const tradesColumnConfig = getTradesColumnConfig();
 const tradesFields = Object.keys(tradesColumnConfig);
 const tradesGridApi = createTradesGrid();
-let tradesSubscription = null;
 
-// Subscribe to positions
-subscribe('positions', positionsFields, (updates) => {
-  applyUpdates(positionsGridApi, updates, 'instrument_id');
+// The rows as they are now, by key: the positions, and each position's trades
+const positions = new Map();
+const tradesByPosition = new Map();
+let selectedPosition = null;
+
+// One subscription: the positions with all their trades, each timestamp as one message
+subscribe(POSITIONS, gql`subscription {
+  ${POSITIONS} {
+    operation fields data { ${positionsFields.join(' ')} }
+    ${TRADES} { operation fields data { ${tradesFields.join(' ')} } }
+  }
+}`, (updates) => {
+  let selectedTrades = null;
+  for (const { data, [TRADES]: trades } of updates) {
+    const id = data[POSITION_KEY];
+    const transaction = applyUpdates(rowsOf(tradesByPosition, id), trades, TRADE_KEY);
+    if (id === selectedPosition) selectedTrades = transaction;
+  }
+  // Both grids change together, so they never show different timestamps
+  positionsGridApi.applyTransaction(applyUpdates(positions, updates, POSITION_KEY));
+  if (selectedTrades) tradesGridApi.applyTransaction(selectedTrades);
 });
 
-// Show the trades of the clicked position, through a filtered subscription
+// Show the trades of the clicked position, which are already here
 function selectPosition(position) {
-  tradesSubscription?.unsubscribe();
-  tradesGridApi.setGridOption('rowData', []);
+  selectedPosition = position[POSITION_KEY];
   document.querySelector('#trades-title').textContent = `Trades: ${position.symbol}`;
-
-  const where = { instrument_id: { _eq: position.instrument_id } };
-  tradesSubscription = subscribe('trades', tradesFields, (updates) => {
-    applyUpdates(tradesGridApi, updates, 'id');
-  }, where);
+  tradesGridApi.setGridOption('rowData', [...rowsOf(tradesByPosition, selectedPosition).values()]);
 }
 
-// Applies one timestamp's updates to a grid as one transaction, so it never shows half a timestamp
-function applyUpdates(gridApi, updates, idField) {
+// A parent's rows by key, made when first needed
+function rowsOf(byParent, parentId) {
+  if (!byParent.has(parentId)) byParent.set(parentId, new Map());
+  return byParent.get(parentId);
+}
+
+// Applies one timestamp's updates to rows kept by key, and gives the grid transaction that does the
+// same: an INSERT adds its row, an UPDATE merges in only the fields it names, as the others come as
+// null, and a DELETE removes its row. Only the rows the updates name change.
+function applyUpdates(rows, updates, idField) {
   const transaction = { add: [], update: [], remove: [] };
-  for (const { operation, data: rowData, fields } of updates) {
+  for (const { operation, data, fields } of updates) {
+    const id = data[idField];
     switch (operation) {
-      case 'DELETE':
-        transaction.remove.push(rowData);
+      case Operation.Insert:
+        rows.set(id, data);
+        transaction.add.push(data);
         break;
-      case 'UPDATE': {
-        const updatedRow = mergeWithExistingRow(gridApi, rowData, fields, idField);
-        if (updatedRow) {
-          transaction.update.push(updatedRow);
-        } else {
-          console.warn(`UPDATE received for non-existent row with ${idField}=${rowData[idField]}`);
+      case Operation.Update: {
+        const row = rows.get(id);
+        if (!row) {
+          console.warn(`UPDATE received for non-existent row with ${idField}=${id}`);
+          break;
         }
+        const merged = { ...row, ...Object.fromEntries(fields.map((field) => [field, data[field]])) };
+        rows.set(id, merged);
+        transaction.update.push(merged);
         break;
       }
-      case 'INSERT':
-        transaction.add.push(rowData);
+      case Operation.Delete:
+        rows.delete(id);
+        transaction.remove.push(data);
         break;
     }
   }
-  gridApi.applyTransaction(transaction);
-}
-
-
-function mergeWithExistingRow(gridApi, deltaData, changedFields, idField) {
-  const rowNode = gridApi.getRowNode(String(deltaData[idField]));
-  if (!rowNode?.data) return null;
-
-  // Start with existing row data
-  const merged = { ...rowNode.data };
-
-  // Apply only the changed fields
-  if (changedFields && changedFields.length > 0) {
-    changedFields.forEach(field => {
-      if (field in deltaData) {
-        merged[field] = deltaData[field];
-      }
-    });
-  }
-
-  return merged;
+  return transaction;
 }
 
 function getPositionsColumnConfig() {
   return {
-    instrument_id: { hide: true },
+    [POSITION_KEY]: { hide: true },
     symbol: { headerName: 'Symbol' },
     latest_price: {
       headerName: 'Latest Price',
@@ -109,7 +120,7 @@ function getPositionsColumnConfig() {
 
 function getTradesColumnConfig() {
   return {
-    id: { hide: true },
+    [TRADE_KEY]: { hide: true },
     executed_at: {
       headerName: 'Executed At',
       width: 200,
@@ -145,7 +156,7 @@ function createPositionsGrid() {
     theme: themeAlpine,
     columnDefs: positionsFields.map(field => ({ field, ...positionsColumnConfig[field] })),
     rowData: [],
-    getRowId: params => String(params.data.instrument_id),
+    getRowId: params => String(params.data[POSITION_KEY]),
     rowSelection: { mode: 'singleRow', checkboxes: false, enableClickSelection: true },
     onRowClicked: event => selectPosition(event.data),
     defaultColDef: {
@@ -163,7 +174,7 @@ function createTradesGrid() {
     theme: themeAlpine,
     columnDefs: tradesFields.map(field => ({ field, ...tradesColumnConfig[field] })),
     rowData: [],
-    getRowId: params => String(params.data.id),
+    getRowId: params => String(params.data[TRADE_KEY]),
     defaultColDef: {
       resizable: true
     },
