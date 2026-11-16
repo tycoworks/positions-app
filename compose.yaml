@@ -19,7 +19,7 @@ services:
     environment:
       MZ_HOST: materialized
     volumes:
-      - ./sql:/sql:ro
+      - ./model:/model:ro
       - ./data.sh:/data.sh:ro
     depends_on:
       materialized:
@@ -37,7 +37,7 @@ services:
       setup:
         condition: service_completed_successfully
 
-  # Serves the views in schema.yaml as GraphQL subscriptions over SSE. It starts after setup.
+  # Serves the views in model/schema.yaml as GraphQL subscriptions over SSE. It starts after setup.
   tycostream:
     image: ghcr.io/tycoworks/tycostream:v0.5.0
     environment:
@@ -51,7 +51,7 @@ services:
       SCHEMA_PATH: ./schema.yaml
       LOG_LEVEL: info
     volumes:
-      - ./schema.yaml:/app/schema.yaml:ro
+      - ./model/schema.yaml:/app/schema.yaml:ro
     ports:
       - "4000:4000"
     depends_on:

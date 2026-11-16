@@ -1,5 +1,5 @@
 {
-  "name": "positions-app-ui",
+  "name": "positions-app-frontend",
   "private": true,
   "type": "module",
   "scripts": {

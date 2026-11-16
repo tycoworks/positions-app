@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/b56982b1-af99-4904-9cab-7b4fb788d765
 
 ```
 docker compose up -d
-cd ui
+cd frontend
 npm install
 npm run dev
 ```

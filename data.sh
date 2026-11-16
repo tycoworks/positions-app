@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Simulated data, in place of a price feed and real trades. compose.yaml runs it inside the stack:
 #
-#   data.sh setup         run sql/tables.sql and sql/views.sql, unless the tables already exist
+#   data.sh setup         run model/tables.sql and model/views.sql, unless the tables already exist
 #   data.sh once          insert a price and a trade for each symbol
 #   data.sh loop [secs]   every secs (default 0.5), a price for each symbol; a trade every 4th round
 #   data.sh prices [secs] the same, prices only
@@ -19,8 +19,8 @@ setup() {
     echo "already set up"
     return
   fi
-  mz -f /sql/tables.sql
-  mz -f /sql/views.sql
+  mz -f /model/tables.sql
+  mz -f /model/views.sql
   echo "tables and views created"
 }
 
