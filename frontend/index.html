@@ -10,25 +10,97 @@
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     }
-    #positions-grid, #trades-grid {
+    #positions-grid, #trades-grid, #requests-grid {
       flex: 1;
       overflow: hidden;
+    }
+    /* Under the positions: the selected position's trades on the left, and the requests on the right */
+    #trades-and-requests {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+    #trades, #requests {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    #trades {
+      flex: 2;
+      border-right: 1px solid #ddd;
+    }
+    #requests {
+      flex: 3;
     }
     .grid-title {
       padding: 8px;
       background: #f0f0f0;
       font-weight: bold;
       border-bottom: 1px solid #ddd;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    }
+    #ticket {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+    #ticket select, #ticket input, #ticket button {
+      font: inherit;
+    }
+    #ticket-quantity {
+      width: 80px;
+    }
+    #ticket-buy, #ticket-sell {
+      padding: 4px 16px;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+    }
+    #ticket-buy {
+      background: green;
+    }
+    #ticket-sell {
+      background: red;
+    }
+    #ticket-buy:disabled, #ticket-sell:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    #ticket-status {
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    #ticket-status.error {
+      color: red;
     }
   </style>
 </head>
 <body>
+  <div id="ticket">
+    <select id="ticket-symbol" aria-label="Symbol" required></select>
+    <input id="ticket-quantity" aria-label="Quantity" type="number" value="100" min="1" step="1" required>
+    <button id="ticket-buy">Buy</button>
+    <button id="ticket-sell">Sell</button>
+    <span id="ticket-status"></span>
+  </div>
   <div class="grid-title">Positions</div>
   <div id="positions-grid"></div>
-  <div class="grid-title" id="trades-title">Trades</div>
-  <div id="trades-grid"></div>
+  <div id="trades-and-requests">
+    <div id="trades">
+      <div class="grid-title" id="trades-title">Trades</div>
+      <div id="trades-grid"></div>
+    </div>
+    <div id="requests">
+      <div class="grid-title" id="requests-title">Requests</div>
+      <div id="requests-grid"></div>
+    </div>
+  </div>
   <script type="module" src="/main.js"></script>
 </body>
 </html>
