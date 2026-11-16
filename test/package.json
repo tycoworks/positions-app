@@ -1,0 +1,11 @@
+{
+  "name": "positions-app-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "pg": "8.23.1"
+  }
+}
