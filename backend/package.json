@@ -1,0 +1,23 @@
+{
+  "name": "positions-app-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bundle": "esbuild index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/index.js --log-level=warning",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@restatedev/restate-sdk": "1.18.3",
+    "@restatedev/xstate": "0.7.0-alpha.0",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "xstate": "6.0.0-beta.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

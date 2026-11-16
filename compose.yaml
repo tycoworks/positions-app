@@ -43,7 +43,8 @@ services:
       setup:
         condition: service_completed_successfully
 
-  # Serves the views in model/schema.yaml as GraphQL subscriptions over SSE. It starts after setup.
+  # Serves the views in model/schema.yaml as GraphQL: subscriptions over SSE for the page, and queries for
+  # the function. It starts after setup.
   tycostream:
     image: ghcr.io/tycoworks/tycostream:v0.5.0
     environment:
@@ -59,3 +60,52 @@ services:
     depends_on:
       setup:
         condition: service_completed_successfully
+
+  # Keeps each trade's progress and state, and calls the function for each piece of work. Calls come
+  # in on 8080, and its UI is on 9070.
+  restate:
+    image: docker.restate.dev/restatedev/restate:1.8.1
+    environment:
+      # Restate calls the function as an AWS Lambda. These send its calls to Floci, which checks no
+      # keys, in place of AWS.
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "8080:8080"   # calls to handlers
+      - "9070:9070"   # UI and admin API
+
+  # Bundles the app's function, from backend/index.ts, into one file, then exits. Its packages are
+  # the ones pinned in backend/package-lock.json.
+  bundle:
+    image: node:24-alpine
+    working_dir: /backend
+    command: ["sh", "-c", "npm ci --no-audit --no-fund && npm run bundle"]
+    volumes:
+      - ./backend:/backend
+      - ./model:/model:ro   # the enums the function shares with the page
+      - function_packages:/backend/node_modules
+
+  # Stands in for AWS Lambda. It runs the function in AWS's own Node image, only while Restate is
+  # calling it, so nothing of the app's runs while a trade waits. backend/deploy.sh deploys the
+  # bundle once Floci is ready, and tells Restate where it is. Floci starts the function's container
+  # through Docker's socket.
+  floci:
+    image: floci/floci:2.4.0-compat
+    user: root   # to open Docker's socket
+    environment:
+      <<: *database
+      TYCOSTREAM_URL: http://tycostream:4000/graphql
+      FLOCI_HOSTNAME: floci
+      FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK: positions-app_default   # so the function reaches the others
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./backend/deploy.sh:/etc/floci/init/ready.d/deploy.sh:ro
+      - ./backend/dist:/function:ro
+    depends_on:
+      bundle:
+        condition: service_completed_successfully
+
+volumes:
+  function_packages:
