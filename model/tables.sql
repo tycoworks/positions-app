@@ -8,11 +8,20 @@ CREATE TABLE instruments (
 );
 
 CREATE TABLE trades (
-  id integer NOT NULL,
+  id text NOT NULL,           -- for a trade booked from the page, its request's id
   instrument_id integer,
   quantity integer NOT NULL,  -- positive for a buy, negative for a sell
   price numeric NOT NULL,
-  executed_at timestamp NOT NULL
+  executed_at timestamp NOT NULL,
+  status text NOT NULL        -- Pending, Booked, Refused, Rejected or Expired
+);
+
+-- The rules that limit trading in each instrument.
+CREATE TABLE limit_rules (
+  instrument_id integer NOT NULL,
+  position_limit numeric NOT NULL,         -- the most its market value may be, long or short
+  approval_over numeric NOT NULL,          -- a trade worth more than this needs a second person's approval
+  approval_wait_seconds integer NOT NULL   -- how long such a trade waits for an answer before it expires
 );
 
 -- The price feed. In the post it was Alpaca's trade prints, brought in through Estuary; here the
@@ -28,11 +37,16 @@ INSERT INTO instruments VALUES
   (2, 'GOOG', 'Alphabet Inc.'),
   (3, 'MSFT', 'Microsoft Corporation');
 
+INSERT INTO limit_rules VALUES
+  (1, 500000, 100000, 60),
+  (2, 500000, 100000, 60),
+  (3, 500000, 100000, 60);
+
 INSERT INTO trades VALUES
-  (1, 1, 500, 198.40, '2025-06-02 14:31:07'),
-  (2, 1, 300, 200.10, '2025-06-02 15:02:44'),
-  (3, 1, -200, 203.20, '2025-06-02 16:18:30'),
-  (4, 2, 200, 172.30, '2025-06-02 14:45:12'),
-  (5, 2, 150, 174.75, '2025-06-02 17:09:58'),
-  (6, 3, -800, 462.20, '2025-06-02 14:52:21'),
-  (7, 3, 300, 458.40, '2025-06-02 18:37:05');
+  ('1', 1, 500, 198.40, '2025-06-02 14:31:07', 'Booked'),
+  ('2', 1, 300, 200.10, '2025-06-02 15:02:44', 'Booked'),
+  ('3', 1, -200, 203.20, '2025-06-02 16:18:30', 'Booked'),
+  ('4', 2, 200, 172.30, '2025-06-02 14:45:12', 'Booked'),
+  ('5', 2, 150, 174.75, '2025-06-02 17:09:58', 'Booked'),
+  ('6', 3, -800, 462.20, '2025-06-02 14:52:21', 'Booked'),
+  ('7', 3, 300, 458.40, '2025-06-02 18:37:05', 'Booked');

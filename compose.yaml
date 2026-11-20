@@ -1,5 +1,13 @@
 name: positions-app
 
+# Where the database is. Everything that connects to Materialize takes these.
+x-database: &database
+  DATABASE_HOST: materialized
+  DATABASE_PORT: 6875
+  DATABASE_USER: materialize
+  DATABASE_PASSWORD: materialize
+  DATABASE_NAME: materialize
+
 services:
   materialized:
     image: materialize/materialized:v26.49.0
@@ -16,8 +24,7 @@ services:
   setup:
     image: materialize/materialized:v26.49.0
     entrypoint: ["/data.sh", "setup"]
-    environment:
-      MZ_HOST: materialized
+    environment: *database
     volumes:
       - ./model:/model:ro
       - ./data.sh:/data.sh:ro
@@ -25,12 +32,11 @@ services:
       materialized:
         condition: service_healthy
 
-  # Simulated prices and trades (data.sh loop).
+  # Simulated prices (data.sh prices).
   simulator:
     image: materialize/materialized:v26.49.0
-    entrypoint: ["/data.sh", "loop"]
-    environment:
-      MZ_HOST: materialized
+    entrypoint: ["/data.sh", "prices"]
+    environment: *database
     volumes:
       - ./data.sh:/data.sh:ro
     depends_on:
@@ -41,11 +47,7 @@ services:
   tycostream:
     image: ghcr.io/tycoworks/tycostream:v0.5.0
     environment:
-      DATABASE_HOST: materialized
-      DATABASE_PORT: 6875
-      DATABASE_USER: materialize
-      DATABASE_PASSWORD: materialize
-      DATABASE_NAME: materialize
+      <<: *database
       GRAPHQL_PORT: 4000
       GRAPHQL_UI: "true"
       SCHEMA_PATH: ./schema.yaml

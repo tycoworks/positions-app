@@ -1,3 +1,11 @@
+enums:
+  trade_status:
+    - Pending
+    - Booked
+    - Refused
+    - Rejected
+    - Expired
+
 sources:
   positions:
     primary_key: instrument_id
@@ -9,13 +17,42 @@ sources:
       market_value: numeric
       avg_cost_basis: numeric
       theoretical_pnl: numeric
+    foreign_keys:
+      instrument_id: limits
   trades:
     primary_key: id
     columns:
-      id: int4
+      id: text
       instrument_id: int4
       quantity: int4
       price: numeric
       executed_at: timestamp
+      status: trade_status
+    foreign_keys:
+      instrument_id: positions
+  limits:
+    primary_key: instrument_id
+    columns:
+      instrument_id: int4
+      symbol: text
+      latest_price: numeric
+      position_limit: numeric
+      approval_over: numeric
+      approval_wait_seconds: int4
+      market_value: numeric
+      pending_buys: numeric
+      pending_sells: numeric
+      available_to_buy: numeric
+      available_to_sell: numeric
+      utilisation: numeric
+  requests:
+    primary_key: id
+    columns:
+      id: text
+      instrument_id: int4
+      quantity: int4
+      price: numeric
+      executed_at: timestamp
+      status: trade_status
     foreign_keys:
       instrument_id: positions
