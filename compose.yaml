@@ -46,7 +46,7 @@ services:
   # Serves the views in model/schema.yaml as GraphQL: subscriptions over SSE for the page, and queries for
   # the function. It starts after setup.
   tycostream:
-    image: ghcr.io/tycoworks/tycostream:v0.5.0
+    image: ghcr.io/tycoworks/tycostream:v0.6.0
     environment:
       <<: *database
       GRAPHQL_PORT: 4000

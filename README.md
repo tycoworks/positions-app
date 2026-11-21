@@ -1,7 +1,7 @@
 
 # positions-app
 
-A live positions and trades screen, for testing real-time infrastructure for trading apps in the [tycoworks](https://www.tycoworks.com) posts.
+A live positions and trades UI, for testing real-time infrastructure for trading apps in the [tycoworks](https://www.tycoworks.com) posts.
 
 - [Materialize](https://materialize.com/) computes positions, P&L, and limits.
 - [tycostream](https://github.com/tycoworks/tycostream) streams them to the browser as GraphQL subscriptions over server-sent events.
@@ -33,4 +33,11 @@ npm test
 ## Versions
 
 - [`v1`](https://github.com/tycoworks/positions-app/tree/v1), for [Can a Streaming Database Power Trading Apps?](https://www.tycoworks.com/p/can-a-streaming-database-power-a): streams through Kafka and Zilla
-- [`v2`](https://github.com/tycoworks/positions-app/tree/v2), for [the tycostream post](https://www.tycoworks.com/p/tycostream-turn-materialize-views): streams through tycostream
+- [`v2`](https://github.com/tycoworks/positions-app/tree/v2), for [Can You Build a View Server with Materialize and GraphQL?](https://www.tycoworks.com/p/tycostream-turn-materialize-views): streams through tycostream
+
+## Tested with
+
+- Materialize v26.49
+- tycostream v0.6.0
+- Restate v1.8.1
+- Floci v2.4.0

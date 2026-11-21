@@ -30,20 +30,16 @@ const limitsColumnConfig = getLimitsColumnConfig();
 const limitsFields = Object.keys(limitsColumnConfig);
 const positionsGridApi = createPositionsGrid();
 
-// Setup trades grid, for the selected position's booked trades
+// Setup trades grid, which holds every position's booked trades and shows the selected position's
 const tradesColumnConfig = getTradesColumnConfig();
 const tradesFields = Object.keys(tradesColumnConfig);
 const tradesGridApi = createTradesGrid();
 
-// Setup requests grid, for the selected position's requests: its trades that aren't booked, from the
-// requests view. A request has a trade's fields and its status.
-const requestsFields = [...tradesFields, 'status'];
+// Setup requests grid, which holds every position's requests and shows the selected position's. A
+// request is a trade that isn't booked, from the requests view, with a trade's fields and its status.
 const requestsGridApi = createRequestsGrid();
 
-// The rows as they are now, by key: the positions, and each position's booked trades and requests
-const positions = new Map();
-const tradesByPosition = new Map();
-const requestsByPosition = new Map();
+// The selected position's key, which the trades and requests grids filter by
 let selectedPosition = null;
 
 // The ticket's controls
@@ -61,27 +57,36 @@ buyButton.addEventListener('click', () => sendRequest(1));
 sellButton.addEventListener('click', () => sendRequest(-1));
 
 // One subscription for the whole page: the positions, each joined to its limits, with its booked
-// trades and its requests, each timestamp as one message
-subscribe(POSITIONS, gql`subscription {
-  ${POSITIONS} {
-    operation fields data { ${positionsFields.join(' ')} ${LIMITS} { ${limitsFields.join(' ')} } }
-    ${TRADES}(where: { status: { _eq: ${TradeStatus.Booked} } }) { operation fields data { ${tradesFields.join(' ')} } }
-    ${REQUESTS} { operation fields data { ${requestsFields.join(' ')} } }
+// trades and its requests, each timestamp as one message. The trades are those with the booked status,
+// which the page passes in from the model's enums.
+const POSITIONS_SUBSCRIPTION = gql`
+  subscription Positions($booked: trade_status!) {
+    positions {
+      operation
+      key
+      data {
+        instrument_id symbol latest_price net_position market_value avg_cost_basis theoretical_pnl
+        limits { position_limit utilisation pending_buys pending_sells available_to_buy available_to_sell }
+      }
+      trades(where: { status: { _eq: $booked } }) {
+        operation
+        key
+        data { id instrument_id executed_at quantity price }
+      }
+      requests {
+        operation
+        key
+        data { id instrument_id executed_at quantity price status }
+      }
+    }
   }
-}`, (updates) => {
-  let selectedChanged = false;
-  for (const { data, [TRADES]: trades, [REQUESTS]: requests } of updates) {
-    const id = data[POSITION_KEY];
-    const transactions = [
-      applyUpdates(rowsOf(tradesByPosition, id), trades, TRADE_KEY),
-      applyUpdates(rowsOf(requestsByPosition, id), requests, TRADE_KEY),
-    ];
-    const changed = transactions.some((transaction) => Object.values(transaction).some((rows) => rows.length));
-    if (id === selectedPosition && changed) selectedChanged = true;
-  }
+`;
+
+subscribe(POSITIONS, POSITIONS_SUBSCRIPTION, { booked: TradeStatus.Booked }, (updates) => {
   // All three grids change together, so they never show different timestamps
-  positionsGridApi.applyTransaction(applyUpdates(positions, updates, POSITION_KEY));
-  if (selectedChanged) showSelectedTrades();
+  positionsGridApi.applyTransaction(toTransaction(updates, POSITION_KEY));
+  tradesGridApi.applyTransaction(toTransaction(updates.flatMap((update) => update[TRADES]), TRADE_KEY));
+  requestsGridApi.applyTransaction(toTransaction(updates.flatMap((update) => update[REQUESTS]), TRADE_KEY));
   offerSymbols();
 });
 
@@ -91,25 +96,21 @@ function selectPosition(position) {
   selectedPosition = position[POSITION_KEY];
   document.querySelector('#trades-title').textContent = `Trades: ${position.symbol}`;
   document.querySelector('#requests-title').textContent = `Requests: ${position.symbol}`;
-  showSelectedTrades();
+  tradesGridApi.onFilterChanged();
+  requestsGridApi.onFilterChanged();
   symbolSelect.value = position.symbol;
-}
-
-// Puts the selected position's booked trades and requests in the two grids under it. A trade moves
-// from one to the other when it is booked.
-function showSelectedTrades() {
-  tradesGridApi.setGridOption('rowData', [...rowsOf(tradesByPosition, selectedPosition).values()]);
-  requestsGridApi.setGridOption('rowData', [...rowsOf(requestsByPosition, selectedPosition).values()]);
 }
 
 // Offers the positions' symbols in the ticket, sorted. The options are replaced only when the symbols
 // change, and the symbol chosen stays chosen.
 function offerSymbols() {
-  const symbols = [...new Set([...positions.values()].map((position) => position.symbol))].sort();
-  if (symbols.join() === [...symbolSelect.options].map((option) => option.value).join()) return;
+  const symbols = new Set();
+  positionsGridApi.forEachNode((node) => symbols.add(node.data.symbol));
+  const sorted = [...symbols].sort();
+  if (sorted.join() === [...symbolSelect.options].map((option) => option.value).join()) return;
   const chosen = symbolSelect.value;
-  symbolSelect.replaceChildren(...symbols.map((symbol) => new Option(symbol)));
-  if (symbols.includes(chosen)) symbolSelect.value = chosen;
+  symbolSelect.replaceChildren(...sorted.map((symbol) => new Option(symbol)));
+  if (symbols.has(chosen)) symbolSelect.value = chosen;
 }
 
 // Sends the ticket's request: Buy as +quantity, Sell as -quantity. Both buttons are off until the reply.
@@ -147,40 +148,14 @@ function showStatus(text, isError = false) {
   ticketStatus.classList.toggle('error', isError);
 }
 
-// A parent's rows by key, made when first needed
-function rowsOf(byParent, parentId) {
-  if (!byParent.has(parentId)) byParent.set(parentId, new Map());
-  return byParent.get(parentId);
-}
-
-// Applies one timestamp's updates to rows kept by key, and gives the grid transaction that does the
-// same: an INSERT adds its row, an UPDATE merges in only the fields it names, as the others come as
-// null, and a DELETE removes its row. Only the rows the updates name change.
-function applyUpdates(rows, updates, idField) {
+// Turns updates into a grid transaction: an INSERT adds its row, an UPDATE with data replaces the row,
+// an UPDATE without data changes nothing here, and a DELETE removes the row by its key
+function toTransaction(updates, keyField) {
   const transaction = { add: [], update: [], remove: [] };
-  for (const { operation, data, fields } of updates) {
-    const id = data[idField];
-    switch (operation) {
-      case Operation.Insert:
-        rows.set(id, data);
-        transaction.add.push(data);
-        break;
-      case Operation.Update: {
-        const row = rows.get(id);
-        if (!row) {
-          console.warn(`UPDATE received for non-existent row with ${idField}=${id}`);
-          break;
-        }
-        const merged = { ...row, ...Object.fromEntries(fields.map((field) => [field, data[field]])) };
-        rows.set(id, merged);
-        transaction.update.push(merged);
-        break;
-      }
-      case Operation.Delete:
-        rows.delete(id);
-        transaction.remove.push(data);
-        break;
-    }
+  for (const { operation, key, data } of updates) {
+    if (operation === Operation.Insert) transaction.add.push(data);
+    else if (operation === Operation.Update && data) transaction.update.push(data);
+    else if (operation === Operation.Delete) transaction.remove.push({ [keyField]: key });
   }
   return transaction;
 }
@@ -363,10 +338,11 @@ function getPnlColumnConfig() {
 }
 
 // A grid with the settings all three share: the theme, columns that fit its width, rows known by
-// their key, and a line of text while it has no rows
+// their key, and a line of text while it has no rows, or none that match its filter
 function createAppGrid(selector, keyField, emptyText, options) {
   return createGrid(document.querySelector(selector), {
     overlayNoRowsTemplate: `<span style="padding: 10px">${emptyText}</span>`,
+    overlayComponentParams: { noMatchingRows: { overlayText: emptyText } },
     theme: themeAlpine,
     rowData: [],
     getRowId: params => String(params.data[keyField]),
@@ -402,8 +378,15 @@ function createPositionsGrid() {
   });
 }
 
+// A trade and a request name their position in the same column as the position's key
+function isSelectedPosition(node) {
+  return node.data[POSITION_KEY] === selectedPosition;
+}
+
 function createTradesGrid() {
   return createAppGrid('#trades-grid', TRADE_KEY, 'Click a position to see its trades', {
+    isExternalFilterPresent: () => true,
+    doesExternalFilterPass: isSelectedPosition,
     columnDefs: tradesFields.map(field => ({ field, ...tradesColumnConfig[field] }))
   });
 }
@@ -411,6 +394,8 @@ function createTradesGrid() {
 function createRequestsGrid() {
   return createAppGrid('#requests-grid', TRADE_KEY, 'No requests for the selected position', {
     columnDefs: getRequestsColumns(),
+    isExternalFilterPresent: () => true,
+    doesExternalFilterPass: isSelectedPosition,
     // Keeps room for the scrollbar, so the columns still fit once the rows need one
     alwaysShowVerticalScroll: true
   });

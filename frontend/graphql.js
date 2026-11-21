@@ -1,8 +1,8 @@
 // Data layer for tycostream's GraphQL subscriptions, which arrive over server-sent events. Each message
 // is one timestamp's updates, the first the snapshot. Each update carries an operation (INSERT, UPDATE
-// or DELETE), the row's data, and the fields it sends: an UPDATE sends the row's key and the changed
-// fields only, and every other field selected comes as null. A list's updates come beside the data, in
-// their parent's update.
+// or DELETE), the row's key, and the row's data: the whole row for an INSERT and for an UPDATE of a row
+// that changed, and null for a DELETE and for an UPDATE where only a list changed. A list's updates come
+// beside the data, in their parent's update.
 import { ApolloClient, InMemoryCache } from '@apollo/client/core';
 import { YogaLink } from '@graphql-yoga/apollo-link';
 export { gql } from '@apollo/client/core';
@@ -17,10 +17,11 @@ const client = new ApolloClient({
   cache: new InMemoryCache(),
 });
 
-// Subscribes to a source, calling onUpdates with each message's updates. The cache stays out of it:
-// an update's data is partial, and merging its nulls into cached rows would overwrite them.
-export function subscribe(source, query, onUpdates) {
-  return client.subscribe({ query, fetchPolicy: 'no-cache' }).subscribe(({ data }) => {
+// Subscribes to a source with the query's variables, calling onUpdates with each message's updates. An
+// error arrives in a result too, and is logged. The cache stays out of it, since the grids hold the rows and nothing reads it.
+export function subscribe(source, query, variables, onUpdates) {
+  return client.subscribe({ query, variables, fetchPolicy: 'no-cache' }).subscribe(({ data, error }) => {
+    if (error) console.error('Subscription error:', error);
     const updates = data?.[source];
     if (updates) onUpdates(updates);
   });
