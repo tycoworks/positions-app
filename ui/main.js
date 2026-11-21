@@ -14,75 +14,49 @@ const positionsColumnConfig = getPositionsColumnConfig();
 const positionsFields = Object.keys(positionsColumnConfig);
 const positionsGridApi = createPositionsGrid();
 
-// Setup trades grid, for the selected position
+// Setup trades grid, which holds every position's trades and shows the selected position's
 const tradesColumnConfig = getTradesColumnConfig();
 const tradesFields = Object.keys(tradesColumnConfig);
 const tradesGridApi = createTradesGrid();
-
-// The rows as they are now, by key: the positions, and each position's trades
-const positions = new Map();
-const tradesByPosition = new Map();
 let selectedPosition = null;
 
 // One subscription: the positions with all their trades, each timestamp as one message
-subscribe(POSITIONS, gql`subscription {
-  ${POSITIONS} {
-    operation fields data { ${positionsFields.join(' ')} }
-    ${TRADES} { operation fields data { ${tradesFields.join(' ')} } }
+const POSITIONS_SUBSCRIPTION = gql`
+  subscription Positions {
+    positions {
+      operation
+      key
+      data { instrument_id symbol latest_price net_position market_value avg_cost_basis theoretical_pnl }
+      trades {
+        operation
+        key
+        data { id instrument_id executed_at quantity price }
+      }
+    }
   }
-}`, (updates) => {
-  let selectedTrades = null;
-  for (const { data, [TRADES]: trades } of updates) {
-    const id = data[POSITION_KEY];
-    const transaction = applyUpdates(rowsOf(tradesByPosition, id), trades, TRADE_KEY);
-    if (id === selectedPosition) selectedTrades = transaction;
-  }
+`;
+
+subscribe(POSITIONS, POSITIONS_SUBSCRIPTION, (updates) => {
   // Both grids change together, so they never show different timestamps
-  positionsGridApi.applyTransaction(applyUpdates(positions, updates, POSITION_KEY));
-  if (selectedTrades) tradesGridApi.applyTransaction(selectedTrades);
+  positionsGridApi.applyTransaction(toTransaction(updates, POSITION_KEY));
+  tradesGridApi.applyTransaction(toTransaction(updates.flatMap((update) => update[TRADES]), TRADE_KEY));
 });
 
 // Show the trades of the clicked position, which are already here
 function selectPosition(position) {
   selectedPosition = position[POSITION_KEY];
   document.querySelector('#trades-title').textContent = `Trades: ${position.symbol}`;
-  tradesGridApi.setGridOption('rowData', [...rowsOf(tradesByPosition, selectedPosition).values()]);
+  tradesGridApi.onFilterChanged();
 }
 
-// A parent's rows by key, made when first needed
-function rowsOf(byParent, parentId) {
-  if (!byParent.has(parentId)) byParent.set(parentId, new Map());
-  return byParent.get(parentId);
-}
-
-// Applies one timestamp's updates to rows kept by key, and gives the grid transaction that does the
-// same: an INSERT adds its row, an UPDATE merges in only the fields it names, as the others come as
-// null, and a DELETE removes its row. Only the rows the updates name change.
-function applyUpdates(rows, updates, idField) {
+// Turns updates into a grid transaction: an INSERT adds its row, an UPDATE with data replaces the row,
+// an UPDATE without data changes nothing here, and a DELETE removes the row by its key
+function toTransaction(updates, keyField) {
   const transaction = { add: [], update: [], remove: [] };
-  for (const { operation, data, fields } of updates) {
-    const id = data[idField];
-    switch (operation) {
-      case Operation.Insert:
-        rows.set(id, data);
-        transaction.add.push(data);
-        break;
-      case Operation.Update: {
-        const row = rows.get(id);
-        if (!row) {
-          console.warn(`UPDATE received for non-existent row with ${idField}=${id}`);
-          break;
-        }
-        const merged = { ...row, ...Object.fromEntries(fields.map((field) => [field, data[field]])) };
-        rows.set(id, merged);
-        transaction.update.push(merged);
-        break;
-      }
-      case Operation.Delete:
-        rows.delete(id);
-        transaction.remove.push(data);
-        break;
-    }
+  for (const { operation, key, data } of updates) {
+    if (operation === Operation.Insert) transaction.add.push(data);
+    else if (operation === Operation.Update && data) transaction.update.push(data);
+    else if (operation === Operation.Delete) transaction.remove.push({ [keyField]: key });
   }
   return transaction;
 }
@@ -171,10 +145,14 @@ function createPositionsGrid() {
 function createTradesGrid() {
   return createGrid(document.querySelector('#trades-grid'), {
     overlayNoRowsTemplate: '<span style="padding: 10px">Click a position to see its trades</span>',
+    overlayComponentParams: { noMatchingRows: { overlayText: 'Click a position to see its trades' } },
     theme: themeAlpine,
     columnDefs: tradesFields.map(field => ({ field, ...tradesColumnConfig[field] })),
     rowData: [],
     getRowId: params => String(params.data[TRADE_KEY]),
+    // A trade names its position in the same column as the position's key
+    isExternalFilterPresent: () => true,
+    doesExternalFilterPass: node => node.data[POSITION_KEY] === selectedPosition,
     defaultColDef: {
       resizable: true
     },
